@@ -40,9 +40,9 @@ def build_default_config() -> TUDiscreteConfig:
             beta=0.8,
             delta=0.05,
             rho=0.6,
-            phi=1,
+            phi=0.5,
             eta=10.0,
-            upgrade_step=2,
+            upgrade_step=10,
         ),
         solver=SolverConfig(
             tol_u=1e-8,
@@ -54,7 +54,7 @@ def build_default_config() -> TUDiscreteConfig:
             alpha_kappa=120.0,
             alpha_tol=1e-6,
             u_max_iter=20000,
-            damp_u=1.0,
+            damp_u=0.5,
         ),
         plot=PlotConfig(
             output_dir=str(output_dir),
@@ -77,6 +77,8 @@ def main() -> None:
         plot_config=config.plot,
     )
 
+    distribution_path = (Path(config.plot.output_dir) / "distribution_overlays_combined.pdf").resolve()
+    print(f"Distribution overlay figure saved to {distribution_path}")
     print(f"Matching-set figure saved to {matching_path}")
     print(f"Diagnostic figures saved to {config.plot.output_dir}")
 

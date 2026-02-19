@@ -42,6 +42,7 @@ class SimulationResult:
     gain_upgrade: np.ndarray
     effort_policy: np.ndarray
     u: np.ndarray
+    u_no_effort: np.ndarray
     meet: np.ndarray
     pairs: float
     unmatched_individuals: float

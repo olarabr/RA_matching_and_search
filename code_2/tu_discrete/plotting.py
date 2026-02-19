@@ -24,6 +24,24 @@ def _ensure_output_dir(path: str) -> None:
     os.makedirs(path, exist_ok=True)
 
 
+def _get_field(obj, names):
+    """Fetch the first matching attribute name from an object."""
+    for name in names:
+        if hasattr(obj, name):
+            return getattr(obj, name)
+    raise ValueError(f"Could not find any of {names}. Available: {sorted(dir(obj))}")
+
+
+def _weighted_cdf(values: np.ndarray, weights: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Return value-sorted weighted CDF."""
+    order = np.argsort(values)
+    sorted_values = values[order]
+    sorted_weights = weights[order]
+    cdf = np.cumsum(sorted_weights)
+    cdf = cdf / cdf[-1]
+    return sorted_values, cdf
+
+
 def plot_matching_set(
     result: SimulationResult,
     grid_config: TypeGridConfig,
@@ -239,16 +257,6 @@ def plot_value_diagnostics(result: SimulationResult, plot_config: PlotConfig) ->
     plt.savefig(os.path.join(plot_config.output_dir, "value_deltaV_by_type.pdf"), bbox_inches="tight", pad_inches=0.05)
     plt.close()
 
-    # C) Unmatched density.
-    plt.figure(figsize=(10, 6))
-    plt.plot(x, result.u, lw=2, color="tab:orange")
-    plt.xlabel("x")
-    plt.ylabel("u(x)")
-    plt.title("Stationary Unmatched Density by Type")
-    plt.grid(alpha=0.25)
-    plt.savefig(os.path.join(plot_config.output_dir, "unmatched_density_u_by_type.pdf"), bbox_inches="tight", pad_inches=0.05)
-    plt.close()
-
     # D) 2x1: colormap + line plot for Delta V.
     fig, (ax_cm, ax_line) = plt.subplots(1, 2, figsize=(16, 3), gridspec_kw={"width_ratios": [1, 1]})
     im = ax_cm.imshow(
@@ -296,6 +304,91 @@ def plot_value_diagnostics(result: SimulationResult, plot_config: PlotConfig) ->
     plt.close(fig)
 
 
+def plot_distribution_overlays(result: SimulationResult, plot_config: PlotConfig) -> str:
+    """Save combined overlay figure for value CDF and normalized unmatched density."""
+    _ensure_output_dir(plot_config.output_dir)
+
+    V = np.asarray(_get_field(result, ["V", "values", "V_with_effort"]), dtype=float).reshape(-1)
+    V0 = np.asarray(_get_field(result, ["V_no_effort", "V0", "values_no_effort"]), dtype=float).reshape(-1)
+    l = np.asarray(_get_field(result, ["l_density", "l", "type_density"]), dtype=float).reshape(-1)
+    u = np.asarray(_get_field(result, ["u", "u_density", "unmatched"]), dtype=float).reshape(-1)
+    u0 = np.asarray(_get_field(result, ["u_no_effort", "u0", "unmatched_no_effort"]), dtype=float).reshape(-1)
+
+    n = V.size
+    if V0.size != n or l.size != n:
+        raise ValueError(
+            "Expected V, V0, and l to have the same length. "
+            f"Got len(V)={V.size}, len(V0)={V0.size}, len(l)={l.size}."
+        )
+    if u.size != n or u0.size != n:
+        raise ValueError(
+            "Expected u and u0 to match V length. "
+            f"Got len(V)={n}, len(u)={u.size}, len(u0)={u0.size}."
+        )
+
+    x_candidate = np.asarray(_get_field(result, ["contributions", "x_grid", "types", "grid"]), dtype=float).reshape(-1)
+    if x_candidate.size == n:
+        x_grid = x_candidate
+    else:
+        x_grid = np.arange(n, dtype=float)
+
+    l_sum = float(np.sum(l))
+    if not np.isfinite(l_sum) or l_sum <= 0:
+        raise ValueError(f"l must have positive finite sum, got {l_sum}.")
+    w = l / l_sum
+
+    finite_mask = np.isfinite(V) & np.isfinite(V0) & np.isfinite(w)
+    if not np.any(finite_mask):
+        raise ValueError("No finite entries found jointly in V, V0, and weights.")
+
+    V_f = V[finite_mask]
+    V0_f = V0[finite_mask]
+    w_f = w[finite_mask]
+    w_sum = float(np.sum(w_f))
+    if not np.isfinite(w_sum) or w_sum <= 0:
+        raise ValueError(f"Filtered weights must have positive finite sum, got {w_sum}.")
+    w_f = w_f / w_sum
+
+    V_sorted, cdf_V = _weighted_cdf(V_f, w_f)
+    V0_sorted, cdf_V0 = _weighted_cdf(V0_f, w_f)
+
+    u_sum = float(np.sum(u))
+    u0_sum = float(np.sum(u0))
+    if not np.isfinite(u_sum) or u_sum <= 0:
+        raise ValueError(f"u must have positive finite sum, got {u_sum}.")
+    if not np.isfinite(u0_sum) or u0_sum <= 0:
+        raise ValueError(f"u0 must have positive finite sum, got {u0_sum}.")
+    u_eff = u / u_sum
+    u_base = u0 / u0_sum
+
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+
+    ax_cdf = axes[0]
+    ax_cdf.plot(V_sorted, cdf_V, lw=2, label="With effort")
+    ax_cdf.plot(V0_sorted, cdf_V0, lw=2, label="No-effort baseline")
+    ax_cdf.set_xlabel("Unmatched value V(x)")
+    ax_cdf.set_ylabel("CDF (population mass)")
+    ax_cdf.set_ylim(0.0, 1.0)
+    ax_cdf.set_title("Population-weighted CDF of V (overlay)")
+    ax_cdf.legend()
+    ax_cdf.grid(alpha=0.25)
+
+    ax_u = axes[1]
+    ax_u.plot(x_grid, u_eff, lw=2, label="With effort")
+    ax_u.plot(x_grid, u_base, lw=2, label="No-effort baseline")
+    ax_u.set_xlabel("Type x")
+    ax_u.set_ylabel("Unmatched mass (normalized)")
+    ax_u.set_title("Unmatched density across types (overlay)")
+    ax_u.legend()
+    ax_u.grid(alpha=0.25)
+
+    fig.tight_layout()
+    output_path = os.path.join(plot_config.output_dir, "distribution_overlays_combined.pdf")
+    fig.savefig(output_path, bbox_inches="tight", pad_inches=0.05)
+    plt.close(fig)
+    return output_path
+
+
 def save_all_plots(
     result: SimulationResult,
     grid_config: TypeGridConfig,
@@ -305,4 +398,5 @@ def save_all_plots(
     matching_path = plot_matching_set(result=result, grid_config=grid_config, plot_config=plot_config)
     plot_alpha_effort_comparison(result=result, plot_config=plot_config)
     plot_value_diagnostics(result=result, plot_config=plot_config)
+    plot_distribution_overlays(result=result, plot_config=plot_config)
     return matching_path

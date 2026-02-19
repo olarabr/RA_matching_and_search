@@ -541,6 +541,7 @@ class TUDiscreteModel:
             gain_upgrade=gain_upgrade,
             effort_policy=effort_policy,
             u=u,
+            u_no_effort=u_no_effort,
             meet=meet,
             pairs=pairs,
             unmatched_individuals=unmatched_individuals,
