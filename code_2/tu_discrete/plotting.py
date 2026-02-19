@@ -110,8 +110,11 @@ def _plot_alpha_colormap(
     vmin: float = 0.0,
     vmax: float = 1.0,
     cbar_label: str = "alpha",
+    show_ylabel: bool = True,
 ) -> None:
     """Plot a single alpha map as a colormap."""
+    y_ticks = [0.0, 0.5, 1.0]
+    y_tick_labels = ["0", "0.5", "1.0"]
     plt.figure(figsize=(7, 6))
     im = plt.imshow(
         alpha_map,
@@ -123,7 +126,9 @@ def _plot_alpha_colormap(
         vmax=vmax,
     )
     plt.xlabel("x")
-    plt.ylabel("y")
+    if show_ylabel:
+        plt.ylabel("y")
+    plt.yticks(y_ticks, y_tick_labels)
     plt.title(title)
     cbar = plt.colorbar(im)
     cbar.set_label(cbar_label)
@@ -165,16 +170,21 @@ def plot_alpha_effort_comparison(result: SimulationResult, plot_config: PlotConf
         vmin=-1.0,
         vmax=1.0,
         cbar_label="difference",
+        show_ylabel=False,
     )
 
     # Side-by-side quick comparison.
     fig, axes = plt.subplots(1, 3, figsize=(18, 5), constrained_layout=True)
     panels = [
-        (alpha_with_effort, "With Effort", "Blues", 0.0, 1.0, "alpha"),
-        (alpha_without_effort, "No Effort", "Greens", 0.0, 1.0, "alpha"),
-        (alpha_diff, "Difference", "bwr", -1.0, 1.0, "difference"),
+        (alpha_with_effort, "With Effort", "Blues", 0.0, 1.0, "alpha", True),
+        (alpha_without_effort, "No Effort", "Greens", 0.0, 1.0, "alpha", True),
+        (alpha_diff, "Difference", "bwr", -1.0, 1.0, "difference", False),
     ]
-    for ax, (mat, title, cmap, vmin, vmax, cbar_label) in zip(axes, panels):
+    for ax, (mat, title, cmap, vmin, vmax, cbar_label, show_ylabel) in zip(axes, panels):
+        y_ticks = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
+        y_tick_labels = ["0", "0.2", "0.4", "0.6", "0.8", "1.0"]
+        x_ticks = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
+        x_tick_labels = ["0", "0.2", "0.4", "0.6", "0.8", "1.0"]
         im = ax.imshow(
             mat,
             origin="lower",
@@ -184,11 +194,12 @@ def plot_alpha_effort_comparison(result: SimulationResult, plot_config: PlotConf
             vmin=vmin,
             vmax=vmax,
         )
-        ax.set_xlabel("x")
-        ax.set_ylabel("y")
+        ax.set_yticks(y_ticks)
+        ax.set_yticklabels(y_tick_labels)
+        ax.set_xticks(x_ticks)
+        ax.set_xticklabels(x_tick_labels)
         ax.set_title(title)
-        cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
-        cbar.set_label(cbar_label)
+        ax.grid()
 
     fig.savefig(
         os.path.join(plot_config.output_dir, "alpha_map_effort_comparison.pdf"),

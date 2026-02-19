@@ -42,7 +42,7 @@ def build_default_config() -> TUDiscreteConfig:
             rho=0.6,
             phi=1,
             eta=10.0,
-            upgrade_step=10,
+            upgrade_step=2,
         ),
         solver=SolverConfig(
             tol_u=1e-8,
