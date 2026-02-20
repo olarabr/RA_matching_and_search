@@ -30,8 +30,6 @@ class ModelConfig:
     rho: float = 0.6
     phi: float = 1.0
     eta: float = 2.0
-    # Upgrade step count used when effort succeeds.
-    # Kept configurable to preserve behavior from prior scripts.
     upgrade_step: int = 1
 
 

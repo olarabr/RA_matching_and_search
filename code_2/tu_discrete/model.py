@@ -200,12 +200,15 @@ class TUDiscreteModel:
 
             for i in range(n):
                 i_up = min(i + m.upgrade_step, n - 1)
-                ev_unmatched_next = (1.0 - p_grid) * V[i] + p_grid * V[i_up]
-                objective = -effort_cost + m.beta * (
-                    (1.0 - meet[i]) * ev_unmatched_next + meet[i] * ev_match_given_meet[i]
+
+                denom = 1.0 - m.beta * (1.0 - meet[i]) * (1.0 - p_grid)
+                numer = -effort_cost + m.beta * (
+                    (1.0 - meet[i]) * p_grid * V[i_up] + meet[i] * ev_match_given_meet[i]
                 )
-                k = int(np.argmax(objective))
-                V_new[i] = objective[k]
+
+                V_i_by_e = numer / denom
+                k = int(np.argmax(V_i_by_e))
+                V_new[i] = V_i_by_e[k]
                 idx_new[i] = k
 
             final_err = np.max(np.abs(V_new - V))
